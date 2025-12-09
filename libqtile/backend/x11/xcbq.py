@@ -533,6 +533,7 @@ class Connection:
                     s.y_org,
                     s.width,
                     s.height,
+                    None,
                 )
                 pseudoscreens.append(Output(None, None, rect))
             return pseudoscreens

@@ -13,7 +13,7 @@ from libqtile.log_utils import logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
-    from typing import Any
+    from typing import Any, Literal
 
     from libqtile.backend import base
     from libqtile.bar import BarType
@@ -356,19 +356,22 @@ class ScreenRect:
     y: int
     width: int
     height: int
+    serial: str | None
 
     def hsplit(self, columnwidth: int) -> tuple[ScreenRect, ScreenRect]:
         assert 0 < columnwidth < self.width
         return (
-            self.__class__(self.x, self.y, columnwidth, self.height),
-            self.__class__(self.x + columnwidth, self.y, self.width - columnwidth, self.height),
+            self.__class__(self.x, self.y, columnwidth, self.height, None),
+            self.__class__(
+                self.x + columnwidth, self.y, self.width - columnwidth, self.height, None
+            ),
         )
 
     def vsplit(self, rowheight: int) -> tuple[ScreenRect, ScreenRect]:
         assert 0 < rowheight < self.height
         return (
-            self.__class__(self.x, self.y, self.width, rowheight),
-            self.__class__(self.x, self.y + rowheight, self.width, self.height - rowheight),
+            self.__class__(self.x, self.y, self.width, rowheight, None),
+            self.__class__(self.x, self.y + rowheight, self.width, self.height - rowheight, None),
         )
 
 
@@ -564,7 +567,7 @@ class Screen(CommandObject):
         return val
 
     def get_rect(self) -> ScreenRect:
-        return ScreenRect(self.dx, self.dy, self.dwidth, self.dheight)
+        return ScreenRect(self.dx, self.dy, self.dwidth, self.dheight, self.serial)
 
     def set_group(
         self, new_group: _Group | None, save_prev: bool = True, warp: bool = True
@@ -1160,6 +1163,32 @@ class Rule:
             self, ["group", "float", "intrusive", "break_on_match"]
         )
         return f"<Rule match={self.matchlist!r} actions=({actions})>"
+
+
+class IdleInhibitor:
+    """
+    Note: Wayland Only
+
+    Create rules for when the compositor should not go into an idle state.
+
+    IdleInhibitor take two arguments:
+      -  match: a ``Match`` object to define which windows the rule should apply to. If unset, it will apply to all windows.
+                Note: qtile evaluates whether a rule mtahces a window once, when the window is first created.
+      -  when: one of the following strings:
+        - "focus" (default): Inhibitor is active when the matching window is the currently focused window
+        - "fullscreen": Inhibitor is active when the matching window is fullscreen
+        - "visible": Inhibitor is active when the matching window is visible on any screen
+                     (still applies if window is completely covered by a floating window)
+        - "open": Inhibitor is active when the matching window is open (even if hidden)
+    """
+
+    def __init__(
+        self,
+        match: _Match | None = None,
+        when: Literal["focus" | "fullscreen" | "visible" | "open"] = "open",
+    ):
+        self.match = match
+        self.when = when
 
 
 class DropDown(configurable.Configurable):
