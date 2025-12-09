@@ -21,6 +21,7 @@ import xcffib.xproto
 from xcffib.xfixes import SelectionEventMask
 from xcffib.xproto import CW, EventMask, WindowClass
 
+from libqtile.backend.base.core import Output
 from libqtile.backend.x11 import window
 from libqtile.backend.x11.xcursors import Cursors
 from libqtile.backend.x11.xkeysyms import keysyms
@@ -427,14 +428,6 @@ class RandR:
 
             crtc_info = self.ext.GetCrtcInfo(info.crtc, xcffib.CurrentTime).reply()
 
-            rect = ScreenRect(crtc_info.x, crtc_info.y, crtc_info.width, crtc_info.height)
-
-            # prepend the primary output, append all others in screen
-            # resources order
-            if primary == output:
-                infos.insert(0, rect)
-            else:
-                infos.append(rect)
             edid_raw = (
                 self.ext.GetOutputProperty(
                     crtc_info.outputs[0], self.conn.atoms["EDID"], 0, 0, 256, False, False
@@ -447,9 +440,15 @@ class RandR:
             if len(edid_raw) > 0:
                 (serial, name) = parse_serial_from_edid(bytes(edid_raw))
 
-            infos.append(
-                ScreenRect(crtc_info.x, crtc_info.y, crtc_info.width, crtc_info.height, serial)
-            )
+            rect = ScreenRect(crtc_info.x, crtc_info.y, crtc_info.width, crtc_info.height)
+            out = Output(name, serial, rect)
+
+            # prepend the primary output, append all others in screen
+            # resources order
+            if primary == output:
+                infos.insert(0, out)
+            else:
+                infos.append(out)
         return infos
 
     def enable_screen_change_notifications(self, conn):
@@ -529,14 +528,14 @@ class Connection:
         elif hasattr(self, "xinerama"):
             pseudoscreens = []
             for i, s in enumerate(self.xinerama.query_screens()):
-                scr = ScreenRect(
+                rect = ScreenRect(
                     s.x_org,
                     s.y_org,
                     s.width,
                     s.height,
                     None,
                 )
-                pseudoscreens.append(scr)
+                pseudoscreens.append(Output(None, None, rect))
             return pseudoscreens
         raise Exception("no randr or xinerama?")
 
@@ -690,8 +689,8 @@ class Painter:
         # necessary size of the root window by looking at the
         # pseudoscreens attribute and calculating the max x and y extents.
         root_windows = screen.qtile.core.conn.pseudoscreens
-        width = max(win.x + win.width for win in root_windows)
-        height = max(win.y + win.height for win in root_windows)
+        width = max(win.rect.x + win.rect.width for win in root_windows)
+        height = max(win.rect.y + win.rect.height for win in root_windows)
 
         try:
             root_pixmap = self.default_screen.root.get_property(

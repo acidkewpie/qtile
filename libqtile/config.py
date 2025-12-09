@@ -446,6 +446,7 @@ class Screen(CommandObject):
         self.height = height if height is not None else 0
         self.previous_group: _Group | None = None
         self.serial = serial
+        self.name: str | None = None
 
     def __eq__(self, other: object) -> bool:
         # When we trigger a reconfigure_screens(), _process_screens()
@@ -702,6 +703,7 @@ class Screen(CommandObject):
             x=self.x,
             y=self.y,
             serial=self.serial,
+            name=self.name,
         )
 
     @expose_command()

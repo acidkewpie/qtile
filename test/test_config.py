@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from libqtile import config, confreader, utils
+from libqtile.backend.base.core import Output
 from libqtile.bar import Bar
 from libqtile.config import Screen, ScreenRect
 from libqtile.widget import TextBox
@@ -101,14 +102,14 @@ def test_screen_serial_ordering_the_order(manager_nospawn, minimal_conf_noscreen
     # no serial numbers in config is ordered in config order
     minimal_conf_noscreen.screens = [Screen(), Screen()]
 
-    def the_order(self) -> list[ScreenRect]:
+    def the_order(self) -> list[Output]:
         return [
-            ScreenRect(0, 0, 800, 600, "a"),
-            ScreenRect(800, 0, 800, 600, "b"),
+            Output(None, "a", ScreenRect(0, 0, 800, 600)),
+            Output(None, "b", ScreenRect(800, 0, 800, 600)),
         ]
 
     monkeypatch.setattr(
-        f"libqtile.backend.{manager_nospawn.backend.name}.core.Core.get_screen_info", the_order
+        f"libqtile.backend.{manager_nospawn.backend.name}.core.Core.get_output_info", the_order
     )
     manager_nospawn.start(minimal_conf_noscreen)
     assert manager_nospawn.c.screen[0].info()["serial"] == "a"
@@ -123,14 +124,14 @@ def test_screen_serial_ordering_one_serial(manager_nospawn, minimal_conf_noscree
     # one serial number is allowed, serial re-use overwrites to avoid confusion
     minimal_conf_noscreen.screens = [Screen(), make_screen("one")]
 
-    def the_order(self) -> list[ScreenRect]:
+    def the_order(self) -> list[Output]:
         return [
-            ScreenRect(0, 0, 800, 600, "one"),
-            ScreenRect(800, 0, 800, 600, "a"),
+            Output(None, "one", ScreenRect(0, 0, 800, 600)),
+            Output(None, "a", ScreenRect(800, 0, 800, 600)),
         ]
 
     monkeypatch.setattr(
-        f"libqtile.backend.{manager_nospawn.backend.name}.core.Core.get_screen_info", the_order
+        f"libqtile.backend.{manager_nospawn.backend.name}.core.Core.get_output_info", the_order
     )
     manager_nospawn.start(minimal_conf_noscreen)
     assert manager_nospawn.c.screen[0].bar["top"].widget["textbox"].get() == "one"
@@ -146,14 +147,14 @@ def test_screen_serial_ordering_serials_backwards(
     # in config order
     minimal_conf_noscreen.screens = [make_screen("one"), make_screen("two")]
 
-    def the_order(self) -> list[ScreenRect]:
+    def the_order(self) -> list[Output]:
         return [
-            ScreenRect(0, 0, 800, 600, "two"),
-            ScreenRect(800, 0, 800, 600, "one"),
+            Output(None, "two", ScreenRect(0, 0, 800, 600)),
+            Output(None, "one", ScreenRect(800, 0, 800, 600)),
         ]
 
     monkeypatch.setattr(
-        f"libqtile.backend.{manager_nospawn.backend.name}.core.Core.get_screen_info", the_order
+        f"libqtile.backend.{manager_nospawn.backend.name}.core.Core.get_output_info", the_order
     )
     manager_nospawn.start(minimal_conf_noscreen)
     assert manager_nospawn.c.screen[0].info()["serial"] == "two"

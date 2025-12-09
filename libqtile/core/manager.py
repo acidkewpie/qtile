@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 import libqtile
 from libqtile import bar, hook, ipc, utils
 from libqtile.backend import base
+from libqtile.backend.base.core import Output
 from libqtile.command import interface
 from libqtile.command.base import CommandError, CommandException, CommandObject, expose_command
 from libqtile.command.client import InteractiveCommandClient
@@ -386,34 +387,42 @@ class Qtile(CommandObject):
         screens = []
 
         if hasattr(self.config, "fake_screens"):
-            screen_info = [
-                ScreenRect(s.x, s.y, s.width, s.height, None) for s in self.config.fake_screens
+            output_info = [
+                Output(None, None, ScreenRect(s.x, s.y, s.width, s.height))
+                for s in self.config.fake_screens
             ]
             config = self.config.fake_screens
         else:
             # Alias screens with the same x and y coordinates, taking largest
-            xywh: dict[tuple[int, int], tuple[int, int, str | None]] = {}
-            for info in self.core.get_screen_info():
-                pos = (info.x, info.y)
-                width, height, serial = xywh.get(pos, (0, 0, info.serial))
+            xywh: dict[tuple[int, int], tuple[int, int, str | None, str | None]] = {}
+            for info in self.core.get_output_info():
+                pos = (info.rect.x, info.rect.y)
+                width, height, serial, name = xywh.get(pos, (0, 0, info.serial, info.name))
                 # if one monitor is wider and one monitor is longer, either
                 # serial number was valid (i.e. we could choose either, since
                 # we're going to project over the whole space). just pick one.
-                xywh[pos] = (max(width, info.width), max(height, info.height), info.serial)
+                xywh[pos] = (
+                    max(width, info.rect.width),
+                    max(height, info.rect.height),
+                    info.serial,
+                    info.name,
+                )
 
-            screen_info = [
-                ScreenRect(x, y, w, h, serial) for (x, y), (w, h, serial) in xywh.items()
+            output_info = [
+                Output(name, serial, ScreenRect(x, y, w, h))
+                for (x, y), (w, h, serial, name) in xywh.items()
             ]
             config = self.config.screens
 
         # wayland parses edid natively, we need an extra library that may or
         # may not be installed to do it in x11
         have_serials_from_hardware = self.core.name == "wayland" or any(
-            i.serial is not None for i in screen_info
+            i.serial is not None for i in output_info
         )
 
-        for i, info in enumerate(screen_info):
+        for i, info in enumerate(output_info):
             scr = Screen(serial=info.serial)
+            scr.name = info.name
             fresh_screen = True
 
             # first, try to find a screen that matches this one by serial
@@ -447,6 +456,7 @@ class Qtile(CommandObject):
                     scr = config[i]
 
                 scr.serial = info.serial
+                scr.name = info.name
 
             if not hasattr(self, "current_screen") or reloading:
                 self.current_screen = scr
@@ -465,7 +475,8 @@ class Qtile(CommandObject):
             # If the screen has changed position and/or size, or is a new screen then make sure that any gaps/bars
             # are reconfigured
             reconfigure_gaps = (
-                (info.x, info.y, info.width, info.height) != (scr.x, scr.y, scr.width, scr.height)
+                (info.rect.x, info.rect.y, info.rect.width, info.rect.height)
+                != (scr.x, scr.y, scr.width, scr.height)
             ) or (i + 1 > len(self.screens))
 
             if not hasattr(scr, "group"):
@@ -480,10 +491,10 @@ class Qtile(CommandObject):
             scr._configure(
                 self,
                 i,
-                info.x,
-                info.y,
-                info.width,
-                info.height,
+                info.rect.x,
+                info.rect.y,
+                info.rect.width,
+                info.rect.height,
                 grp,
                 reconfigure_gaps=reconfigure_gaps,
             )
